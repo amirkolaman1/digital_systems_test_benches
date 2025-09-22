@@ -9,6 +9,35 @@ module and_tb;
     // Output
     wire y;
 
+    integer failures = 0;
+
+    // Simple assertion helper (works in plain Verilog)
+    task automatic assert_eq;
+        input [0:0] actual;
+        input [0:0] expected;
+        begin
+            if (actual !== expected) begin
+                $error("ASSERTION FAILED: a=%0b b=%0b | expected=%0b got=%0b @ t=%0t", a, b, expected, actual, $time);
+                failures = failures + 1;
+            end else begin
+                $display("OK: a=%0b b=%0b | y=%0b @ t=%0t", a, b, actual, $time);
+            end
+        end
+    endtask
+
+    // Apply a,b then check y == a & b
+    task automatic apply_and_check;
+        input [0:0] a_i;
+        input [0:0] b_i;
+        begin
+            a = a_i;
+            b = b_i;
+            #1; // allow signals to propagate
+            assert_eq(y, (a & b));
+            #9; // keep original 10ns step between vectors
+        end
+    endtask
+
     // Instantiate the AND gate (assume module name is and_gate)
     and_gate uut (
         .a(a),
@@ -20,18 +49,19 @@ module and_tb;
         $dumpfile("and_tb.vcd");
         $dumpvars(0, and_tb);   
 
-        // Test all input combinations
-        a = 0; b = 0; #10;
-        $display("a=%b b=%b y=%b", a, b, y);
+        // Test all input combinations with checks
+        apply_and_check(1'b0, 1'b0);
+        apply_and_check(1'b0, 1'b1);
+        apply_and_check(1'b1, 1'b0);
+        apply_and_check(1'b1, 1'b1);
 
-        a = 0; b = 1; #10;
-        $display("a=%b b=%b y=%b", a, b, y);
-
-        a = 1; b = 0; #10;
-        $display("a=%b b=%b y=%b", a, b, y);
-
-        a = 1; b = 1; #10;
-        $display("a=%b b=%b y=%b", a, b, y);
+        // Summary
+        if (failures == 0) begin
+            $display("\nTEST PASSED: All checks succeeded.");
+        end else begin
+            $display("\nTEST FAILED: %0d check(s) failed.", failures);
+            $fatal(1);
+        end
 
         $finish;
     end
